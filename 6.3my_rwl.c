@@ -37,6 +37,14 @@ int my_read(int fd)
 	{
 		my_err("lseek", __LINE__);
 	}
+	
+	if(lseek(fd, 0, SEEK_SET) == -1)
+	{
+		my_err("lseek", __LINE__);
+	}
+
+	//lseek(fd , 0, SEEK_SET);
+
 
 	printf("len: %d\n", len);
 
@@ -50,7 +58,7 @@ int my_read(int fd)
 	{
 		printf("%c", read_buf[i]);
 	}
-
+//printf("\n %s \n", read_buf);
 	printf("\n");
 
 	return ret;
@@ -69,7 +77,7 @@ int main()
 
 	else
 	{
-		printf("cheat ifle success\n");
+		printf("cheat file success\n");
 	}
 
 	//写数据
