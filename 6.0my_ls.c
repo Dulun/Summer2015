@@ -15,22 +15,31 @@
 #include<unistd.h>
 #include<pwd.h>	
 #include<grp.h>
+#include<sys/ioctl.h>
+#include<termios.h>
 #include<dirent.h>
 #include<linux/limits.h>
 #include<dirent.h>
 #include<errno.h>
 
-#define MAXLEN 150
 #define PARAM_NO 0
-#define PARAM_a    1
-#define PARAM_l     2
+#define PARAM_A    1
+#define PARAM_L     2
 
+int GetCol()
+{
+	struct winsize size;
+	ioctl(STDIN_FILENO,TIOCGWINSZ,&size);
+	return size.ws_col;
+}
+
+int MAXLEN; 
 int maxlength;
 int namelength;
-int l_length = MAXLEN;
+int l_length;
 
 void show_error(char * reason,  int line);
-int    goto_dir(int flag_parameter, char * path);
+int  goto_dir(int flag_parameter, char * path);
 void show_a_filename(char * name);
 void show_file(int flag_parameter, char * path_name);
 
@@ -65,11 +74,12 @@ int goto_dir(int flag_parameter, char * path)
 
 	while((ptr = readdir(dir)) != NULL)       //获取该目录下文件总数和最长文件名
 	{
-		if((ptr -> d_reclen )> maxlength)
-			maxlength = ptr->d_reclen;
+		if((strlen(ptr ->d_name))> maxlength)
+			//maxlength = ptr->d_reclen;
+			maxlength = strlen(ptr ->d_name);
 		count++;
 		//printf("count = %d ", count);
-	}
+	}	
 	//此处需要closedir
 	closedir(dir);
 	
@@ -101,29 +111,30 @@ int goto_dir(int flag_parameter, char * path)
 		//printf("debug:filename:%s", filename[i]);
 	}
 	
-/*	for(i = 0; i < count -1 ; i++)    
+	for(i = 0; i < count -1 ; i++)    
 	{                                   //按文件名称排序
 		for(j = 0; j < count - i - 1 ; j++)
 		{
 			if(strcmp (filename[j], filename[j+1]) > 0)
-			{	
-				strcpy(temp, filename[j + 1]);
-			//	temp[strlen(filename[j + 1])] = 0;
-				strcmp(filename[j + 1], filename[j]);
-			//	filename[j + 1][strlen(filename[j])] =0;
-	 			strcpy(filename[j], temp);
-			//	filename[j][strlen(temp)] = 0;
+			{				
+				strcpy(temp,filename[j+1]);
+				temp[strlen(filename[j+1])]='\0';
+				strcpy(filename[j+1],filename[j]);
+				filename[j+1][strlen(filename[j])]='\0';
+				strcpy(filename[j],temp);
+				filename[j][strlen(temp)]='\0';
 			}
 		}
 	}
 		//printf("debug1a:filename:%s", filename[3]);
-*/
+
 	
 			
 	for(i = 0; i < count ; i++)
 	{
 		show_file(flag_parameter, filename[i]);
 	}
+	printf("\n");
 
 	closedir(dir);
 }
@@ -160,22 +171,24 @@ void show_file(int flag_parameter, char * path_name)
 			{
 			//	printf("debug:filename[0]: %c", name[0]);
 				show_a_filename(name);
+	//		printf("debug ===-=========%d ", maxlength);
 			}
-			break;							
+			break;			
 			
-		case PARAM_a:
+			
+		case PARAM_A:
 		
 			show_a_filename(name);			
 			break;
 						
-		case PARAM_l:
+		case PARAM_L:
 			//printf("debug III");
-			show_file_details(name);
+			show_file_details(buf, name);
 			printf("%-s\n", name);	
 			//printf("debug III");		
 			break;
 		
-		case PARAM_a + PARAM_l:
+		case PARAM_A + PARAM_L:
 		
 			show_file_details(buf, name);
 			printf("%-s\n", name);			
@@ -195,12 +208,13 @@ void show_a_filename(char * name)
 	if(l_length < maxlength)
 	{
 		printf("\n");	
-		l_length = maxlength;
+		l_length = GetCol();
 	}
 	
 	len  = strlen(name);
 	len = maxlength - len;
 	printf("%-s", name);
+	//printf("debug ===-=========%d ", maxlength);
 	
 	for(i = 0; i < len; i++)
 	{
@@ -208,14 +222,13 @@ void show_a_filename(char * name)
 	}
 	printf("  ");
 	l_length -= (maxlength + 2);
-	//printf("debug l_length = %d  maxlength= %d", l_length, maxlength);
 }
 
 void show_file_details(struct stat buf, char * name)
 {
 	char buf_time[32];
 	struct passwd * psd;
-	struct group    * grp;
+	struct group  * grp;
 	
 	if(S_ISLNK(buf.st_mode))
 	{
@@ -291,7 +304,7 @@ void show_file_details(struct stat buf, char * name)
 	
 	if(buf.st_mode & S_IWGRP)
 	{
-		printf("r");
+		printf("w");
 	}
 	else
 	{
@@ -332,18 +345,20 @@ void show_file_details(struct stat buf, char * name)
 		printf("-");
 	}
 	
-	printf("  ");
+	printf(" ");
 //-----------------------------------------
 	
 	psd = getpwuid(buf.st_uid);
 	grp  = getgrgid(buf.st_gid);
-	printf("%4d  ",  buf.st_nlink);
-	printf("%-8s", psd -> pw_name);
-	printf("%-8s", grp -> gr_name);
+	printf("%-3d ",  buf.st_nlink);
+	printf("%-8s", psd->pw_name);
+	printf("%-8s", grp->gr_name);
 	
 	printf("%6d", buf.st_size);
 	strcpy(buf_time, ctime(&buf.st_mtime));
-	printf(" %s", buf_time);	
+	buf_time[strlen(buf_time)-1]='\0'; //去掉换行符
+	printf(" %s ", buf_time);
+
 }
 
 
@@ -355,6 +370,9 @@ int main(int argc , char ** argv)
 	char flag_parameter = 0;
 	char path[PATH_MAX + 1];
 	struct stat buf;
+
+	
+	l_length = GetCol();
 	
 	for(i = 0; i < argc; i++)
 	{
@@ -372,13 +390,13 @@ int main(int argc , char ** argv)
 	{
 		if(parameter[i] == 'a')
 		{
-			flag_parameter  |=   PARAM_a;   //或等于
+			flag_parameter  |=  PARAM_A;   //或等于
 			continue;
 		}
 		
 		else if(parameter[i] == 'l')
 		{
-			flag_parameter |=  PARAM_l;  
+			flag_parameter |=  PARAM_L;  
 			continue;
 		}
 		
@@ -437,7 +455,7 @@ int main(int argc , char ** argv)
 			}
 		}
 	}while(i < argc);
-	
+
 	return 0;
 }
 
