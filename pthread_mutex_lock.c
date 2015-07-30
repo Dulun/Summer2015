@@ -23,6 +23,8 @@ int main()
 {
 	pthread_t thid1, thid2;
 
+	pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+
 	pthread_create(&thid1, NULL, (void *)read_a, NULL);
 	printf("main:a = %d\n", a);
 	pthread_create(&thid2, NULL, (void *)write_a, NULL);
